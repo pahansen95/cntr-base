@@ -144,8 +144,13 @@ async def chat_completions(
     # For streaming responses, we need to stream the response back
     if oai_request.stream:
       logger.debug("Returning streaming response")
+      
+      async def stream_generator():
+        async for chunk in azure_response.aiter_bytes():
+          yield chunk
+          
       return fastapi.responses.StreamingResponse(
-        azure_response.aiter_raw(),
+        stream_generator(),
         media_type="application/json"
       )
     
