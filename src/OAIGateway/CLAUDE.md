@@ -8,29 +8,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Before taking action
   - articulate what you want to do & why.
   - prompt the user for feedback first.
-
-## Build/Run Commands
+- Consult the README for an overview on the project
 - Focus on helping the user develop their project
-- Do not attempt to run the project or any other daemon or service.
-
-## Testing
-- No formal test harness present
-- Manual verification using the API endpoints
+- Do not attempt to run the project, test the project or any other daemon or service.
 
 ## Code Style Guidelines
-- **Indentation**: 4 spaces (no tabs)
-- **Line Length**: ~80-100 characters
-- **Type Hints**: Required for all function parameters and return values
+- **Style & Formatting**: declarative; condensed; readable
+- **Indentation**: 2 spaces (no tabs)
+- **Typing**: Pydantic; typehints
 - **Naming**:
   - Classes: PascalCase
   - Functions/Variables: snake_case
   - Constants: UPPERCASE
-- **Imports**: Group by stdlib, third-party, internal
+- **Imports**:
+  - `import` statements: `import foo, bar, baz`
+  - `import from` statements: `from foo import *` or `from bar import hello, world`
 - **Error Handling**: Use specific exception types with descriptive messages
-- **Documentation**: Use docstrings for functions/classes
-- **Logging**: Use appropriate log levels (debug, info, warning, error)
+- **Documentation**: Describe WHAT & WHY; use docstrings for functions/classes; include comprehensive inline comments.
 
 ## Architecture
-- FastAPI-based service for OpenAI API Gateway
-- Provider pattern for different backend services
+- ASGI (FastAPI/Uvicorn) Gateway for OpenAI API
 - Pydantic models for request/response validation

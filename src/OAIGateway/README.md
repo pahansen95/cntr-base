@@ -1,4 +1,4 @@
-# OpenAI API Gateway Proxy
+# OpenAI API Gateway
 
 A modular API gateway that transforms OpenAI API requests into provider-specific formats and provides local TLS termination.
 
@@ -11,4 +11,5 @@ A modular API gateway that transforms OpenAI API requests into provider-specific
 - Transforms backend responses back to OpenAI format
 - Terminates TLS locally with provided certificates
 - Comprehensive error handling and logging
-- Configuration via environment variables
+- Configuration via environment variables or command-line arguments
+
