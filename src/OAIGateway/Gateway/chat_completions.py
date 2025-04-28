@@ -16,12 +16,110 @@ import logging
 
 # Pydantic models for request validation
 
+class ContentPartText(pydantic.BaseModel):
+  type: Literal["text"]
+  text: str
+
+class ContentPartImageUrl(pydantic.BaseModel):
+  url: str
+  detail: Optional[Literal["auto", "low", "high"]] = "auto"
+
+class ContentPartImage(pydantic.BaseModel):
+  type: Literal["image_url"]
+  image_url: ContentPartImageUrl
+
+class ContentPartRefusal(pydantic.BaseModel):
+  type: Literal["refusal"]
+  refusal: str
+
+class ContentPartAudio(pydantic.BaseModel):
+  type: Literal["input_audio"]
+  input_audio: Dict[str, Any]
+
+class ContentPartFile(pydantic.BaseModel):
+  type: Literal["file"]
+  file: Dict[str, Any]
+
+class FunctionObject(pydantic.BaseModel):
+  name: str
+  description: Optional[str] = None
+  parameters: Optional[Dict[str, Any]] = None
+  strict: Optional[bool] = False
+
+class ChatCompletionTool(pydantic.BaseModel):
+  type: Literal["function"]
+  function: FunctionObject
+
+class ChatCompletionNamedToolChoice(pydantic.BaseModel):
+  type: Literal["function"]
+  function: Dict[str, str]
+
+class ChatCompletionToolCall(pydantic.BaseModel):
+  id: str
+  type: Literal["function"]
+  function: Dict[str, str]
+
+class ChatCompletionMessageToolCall(pydantic.BaseModel):
+  id: str
+  type: Literal["function"]
+  function: Dict[str, str]
+
+class ChatCompletionMessageBase(pydantic.BaseModel):
+  role: str
+  name: Optional[str] = None
+
+class ChatCompletionMessageSystem(ChatCompletionMessageBase):
+  role: Literal["system"]
+  content: Union[str, List[ContentPartText]]
+
+class ChatCompletionMessageDeveloper(ChatCompletionMessageBase):
+  role: Literal["developer"]
+  content: Union[str, List[ContentPartText]]
+
+class ChatCompletionMessageUser(ChatCompletionMessageBase):
+  role: Literal["user"]
+  content: Union[str, List[Union[ContentPartText, ContentPartImage, ContentPartAudio, ContentPartFile]]]
+
+class ChatCompletionMessageAssistant(ChatCompletionMessageBase):
+  role: Literal["assistant"]
+  content: Optional[Union[str, List[Union[ContentPartText, ContentPartRefusal]]]] = None
+  function_call: Optional[Dict[str, str]] = None
+  tool_calls: Optional[List[ChatCompletionToolCall]] = None
+  refusal: Optional[str] = None
+  audio: Optional[Dict[str, Any]] = None
+
+class ChatCompletionMessageTool(ChatCompletionMessageBase):
+  role: Literal["tool"]
+  content: Union[str, List[ContentPartText]]
+  tool_call_id: str
+
+class ChatCompletionMessageFunction(ChatCompletionMessageBase):
+  role: Literal["function"]
+  content: str
+  name: str
+
 class ChatCompletionMessage(pydantic.BaseModel):
   role: str
   content: Optional[Union[str, List[Dict[str, Any]]]] = None
   name: Optional[str] = None
   function_call: Optional[Dict[str, str]] = None
   tool_calls: Optional[List[Dict[str, Any]]] = None
+  tool_call_id: Optional[str] = None
+  refusal: Optional[str] = None
+  audio: Optional[Dict[str, Any]] = None
+
+class ResponseFormatType(pydantic.BaseModel):
+  type: str
+
+class ResponseFormatText(ResponseFormatType):
+  type: Literal["text"]
+
+class ResponseFormatJsonSchema(ResponseFormatType):
+  type: Literal["json_schema"]
+  json_schema: Dict[str, Any]
+
+class ResponseFormatJsonObject(ResponseFormatType):
+  type: Literal["json_object"]
 
 class ChatCompletionRequest(pydantic.BaseModel):
   model: str
@@ -32,18 +130,29 @@ class ChatCompletionRequest(pydantic.BaseModel):
   stream: Optional[bool] = False
   stop: Optional[Union[str, List[str]]] = None
   max_tokens: Optional[int] = None
+  max_completion_tokens: Optional[int] = None
   presence_penalty: Optional[float] = 0.0
   frequency_penalty: Optional[float] = 0.0
   logit_bias: Optional[Dict[str, float]] = None
   user: Optional[str] = None
   functions: Optional[List[Dict[str, Any]]] = None
   function_call: Optional[Union[str, Dict[str, str]]] = None
-  tools: Optional[List[Dict[str, Any]]] = None
-  tool_choice: Optional[Union[str, Dict[str, Any]]] = None
-  response_format: Optional[Dict[str, str]] = None
+  tools: Optional[List[ChatCompletionTool]] = None
+  tool_choice: Optional[Union[Literal["none", "auto", "required"], ChatCompletionNamedToolChoice]] = None
+  response_format: Optional[Union[ResponseFormatText, ResponseFormatJsonSchema, ResponseFormatJsonObject]] = None
   seed: Optional[int] = None
   logprobs: Optional[bool] = None
   top_logprobs: Optional[int] = None
+  stream_options: Optional[Dict[str, Any]] = None
+  parallel_tool_calls: Optional[bool] = None
+  reasoning_effort: Optional[Literal["low", "medium", "high"]] = None
+  modalities: Optional[List[Literal["text", "audio"]]] = None
+  store: Optional[bool] = False
+  service_tier: Optional[Literal["auto", "default"]] = "auto"
+  web_search_options: Optional[Dict[str, Any]] = None
+  audio: Optional[Dict[str, Any]] = None
+  prediction: Optional[Dict[str, Any]] = None
+  metadata: Optional[Dict[str, str]] = None
 
 # Configuration for Azure API access
 class AzureConfig:
@@ -107,16 +216,34 @@ async def chat_completions(
       "messages": [msg.model_dump(exclude_none=True) for msg in oai_request.messages],
     }
     
+    # Helper function to make complex objects JSON serializable
+    def prepare_for_json(obj):
+      if hasattr(obj, 'model_dump'):
+        return obj.model_dump(exclude_none=True)
+      elif isinstance(obj, list):
+        return [prepare_for_json(item) for item in obj]
+      elif isinstance(obj, dict):
+        return {k: prepare_for_json(v) for k, v in obj.items()}
+      else:
+        return obj
+    
     # Copy all the other parameters that are shared between APIs
     for field in [
-      "temperature", "top_p", "n", "stream", "stop", "max_tokens",
+      "temperature", "top_p", "n", "stream", "stop", "max_tokens", "max_completion_tokens",
       "presence_penalty", "frequency_penalty", "logit_bias", "user",
-      "functions", "function_call", "tools", "tool_choice", 
-      "response_format", "seed", "logprobs", "top_logprobs"
+      "functions", "function_call", "response_format", "seed", "logprobs", "top_logprobs",
+      "stream_options", "parallel_tool_calls"
     ]:
       value = getattr(oai_request, field)
       if value is not None:
-        azure_request[field] = value
+        azure_request[field] = prepare_for_json(value)
+    
+    # Handle tools and tool_choice separately as they require serialization
+    if oai_request.tools is not None:
+      azure_request["tools"] = prepare_for_json(oai_request.tools)
+      
+    if oai_request.tool_choice is not None:
+      azure_request["tool_choice"] = prepare_for_json(oai_request.tool_choice)
     
     # Make the request to Azure OpenAI
     endpoint = f"/openai/deployments/{deployment_name}/chat/completions?api-version={azure_config.api_version}"
