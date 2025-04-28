@@ -8,6 +8,7 @@ from . import app
 import pydantic
 from typing import Dict, List, Optional, Union, Any, Literal
 from fastapi import Body, HTTPException, Request, Depends
+import fastapi.responses
 import httpx
 import os
 import json
@@ -143,7 +144,10 @@ async def chat_completions(
     # For streaming responses, we need to stream the response back
     if oai_request.stream:
       logger.debug("Returning streaming response")
-      return azure_response.aiter_raw()
+      return fastapi.responses.StreamingResponse(
+        azure_response.aiter_raw(),
+        media_type="application/json"
+      )
     
     # For non-streaming, just return the JSON response
     # The response format is already compatible with OpenAI format
