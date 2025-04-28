@@ -1,6 +1,5 @@
 import logging, time, os
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import JSONResponse
 
 ### Logging
 logger = logging.getLogger(__name__)
@@ -130,12 +129,6 @@ async def trace(request: Request, call_next):
         
     return response
 
-### Routes
-
-@app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
-async def unmatched(path: str):
-    """Catch-all route for unmatched requests."""
-    return JSONResponse(
-        status_code=404,
-        content={"error": "Not found", "message": f"Route '/{path}' not found"}
-    )
+### Local Imports
+from .chat_completions import *
+from .fallback import * # Make this last

@@ -46,9 +46,9 @@ class ChatCompletionRequest(pydantic.BaseModel):
 # Configuration for Azure API access
 class AzureConfig:
   def __init__(self):
-    self.api_base = os.environ.get("AZURE_OPENAI_API_BASE", "https://your-resource-name.openai.azure.com")
-    self.api_key = os.environ.get("AZURE_OPENAI_API_KEY", "your-api-key")
-    self.api_version = os.environ.get("AZURE_OPENAI_API_VERSION", "2023-05-15")
+    self.api_base = os.environ["AZURE_OPENAI_API_BASE"]
+    self.api_key = os.environ["AZURE_OPENAI_API_KEY"]
+    self.api_version = os.environ["AZURE_OPENAI_API_VERSION"]
     
     # Model deployment mapping (OpenAI model ID -> Azure deployment name)
     self.deployment_map = {
