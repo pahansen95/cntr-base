@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Before taking action
   - articulate what you want to do & why.
   - prompt the user for feedback first.
-- Consult the README for an overview on the project
+- Consult the [README](./README.md) for an overview on the project
 - Focus on helping the user develop their project
 - Do not attempt to run the project, test the project or any other daemon or service.
 

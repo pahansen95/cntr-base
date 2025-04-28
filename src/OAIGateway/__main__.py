@@ -66,7 +66,7 @@ def main(
         logger.info(f"Starting OpenAI API Gateway on https://{host}:{port}")
 
         uvicorn.run(
-          "OAIGateway.gateway:app",
+          "OAIGateway.Gateway:app",
           host=host,
           port=port,
           ssl_keyfile=key_path.as_posix(),
