@@ -4,7 +4,7 @@ Implements `/chat/completions` OpenAI Endpoint.
 This module transforms the OpenAI ChatCompletion API format to Azure OpenAI format.
 """
 
-from . import app
+from . import app, logger
 import pydantic
 from typing import Dict, List, Optional, Union, Any, Literal
 from fastapi import Body, HTTPException, Request, Depends
@@ -13,11 +13,6 @@ import httpx
 import os
 import json
 import logging
-
-# Setup logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-logger.debug("Initialized chat_completions logger in debug mode")
 
 # Pydantic models for request validation
 

@@ -131,4 +131,5 @@ async def trace(request: Request, call_next):
 
 ### Local Imports
 from .chat_completions import *
+from .models import *
 from .fallback import * # Make this last

@@ -48,11 +48,11 @@ def main(
       # Use command line args with fallback to environment variables
       host = _get_kwarg('listen-host', env.get('LISTEN_HOST', '127.0.0.1'))
       port = int(_get_kwarg('listen-port', env.get('LISTEN_PORT', '8000')))
-      log_level = _get_kwarg('log-level', env.get('LOG_LEVEL', 'info').lower())
       
       # Get SSL certificate paths from environment or default location
       cert_path = pathlib.Path(_get_kwarg('cert-path', env.get('CERT_PATH', './cert.pem')))
       key_path = pathlib.Path(_get_kwarg('cert-key', env.get('KEY_PATH', './cert.key')))
+      log_level = os.environ.get('LOG_LEVEL', 'INFO').lower()
       
       if not cert_path.exists() or not key_path.exists():
         logger.warning(f"SSL certificates not found at {cert_path.as_posix()} and {key_path.as_posix()}. Run certs.sh to generate them.")
@@ -71,7 +71,7 @@ def main(
           port=port,
           ssl_keyfile=key_path.as_posix(),
           ssl_certfile=cert_path.as_posix(),
-          log_level=log_level.lower(),
+          log_level=log_level,
         )
       except Exception as e:
         raise E(f'Failed to start server: {str(e)}') from e
