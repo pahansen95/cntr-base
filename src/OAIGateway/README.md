@@ -1,17 +1,35 @@
 # OpenAI API Gateway Proxy
 
-A lightweight, single-file API gateway that transforms OpenAI API requests into a custom backend format and provides local TLS termination.
+A modular API gateway that transforms OpenAI API requests into provider-specific formats and provides local TLS termination.
 
 ## Features
 
 - Accepts HTTPS requests following OpenAI API structure
 - Transforms request payloads between OpenAI and backend formats
-- Translates endpoint paths
-- Proxies requests to a local backend service
+- Extensible provider system for different backend services
+- Proxies requests to configured backend services
 - Transforms backend responses back to OpenAI format
 - Terminates TLS locally with provided certificates
 - Comprehensive error handling and logging
 - Configuration via environment variables
+
+## Project Structure
+
+```
+OAIGateway/
+├── __init__.py         # Core models and utilities
+├── __main__.py         # Entry point for running as a module
+├── gateway.py          # FastAPI routes and request handling
+├── Providers/          # Provider implementations
+│   ├── __init__.py     # Base Provider interface
+│   ├── backend/        # Backend provider implementations
+│   │   ├── __init__.py # Backend provider utilities
+│   │   ├── Azure.py    # Azure OpenAI provider implementation
+│   │   └── Dummy.py    # Dummy provider for testing
+│   └── manager.py      # Provider loading and management
+├── requirements.txt    # Dependencies
+└── certs.sh            # TLS certificate generation script
+```
 
 ## Requirements
 
@@ -20,14 +38,9 @@ A lightweight, single-file API gateway that transforms OpenAI API requests into 
 - Uvicorn (with standard extras for TLS support)
 - httpx
 - Pydantic
+- uuid
 
 ## Installation
-
-```bash
-pip install fastapi uvicorn[standard] httpx pydantic
-```
-
-Alternatively, use the provided requirements.txt:
 
 ```bash
 pip install -r requirements.txt
@@ -42,46 +55,104 @@ The gateway can be configured using environment variables:
 | `AZUREOAI_URL` | URL of your backend service | `http://127.0.0.1:9000` |
 | `CERT_PATH` | Path to SSL certificate | `cert.pem` |
 | `KEY_PATH` | Path to SSL key | `key.pem` |
-| `LISTEN_HOST` | Host to listen on | `0.0.0.0` |
-| `LISTEN_PORT` | Port to listen on | `443` |
+| `LISTEN_HOST` | Host to listen on | `127.0.0.1` |
+| `LISTEN_PORT` | Port to listen on | `50443` |
 | `LOG_LEVEL` | Logging level | `INFO` |
-
-You can set these variables in your shell before running the script, or use a `.env` file with a tool like `python-dotenv` to load them.
+| `LOG_FILE` | Path to log file | `oai_gateway.log` |
+| `REQUEST_LOG_FILE` | Path to request tracing file | `request_trace.log` |
+| `OAI_DEFAULT_PROVIDER` | Default provider to use | `dummy` |
 
 ## TLS Certificate Setup
 
-For local development, you can generate a self-signed certificate:
+For local development, you can generate a self-signed certificate using the provided script:
 
 ```bash
-openssl req -x509 -newkey rsa:4096 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=localhost"
+./certs.sh
 ```
+
+This script allows customization via environment variables:
+
+| Environment Variable | Description | Default Value |
+|----------------------|-------------|---------------|
+| `CERT_PATH` | Output path for certificate | `cert.pem` |
+| `KEY_PATH` | Output path for private key | `key.pem` |
+| `DAYS` | Certificate validity in days | `365` |
+| `CN` | Common Name for certificate | `localhost` |
+| `RSA_BITS` | RSA key size in bits | `4096` |
 
 ## Running the Gateway
 
-The gateway requires elevated privileges to bind to port 443:
+Run the gateway as a module:
 
 ```bash
-sudo python gateway.py
+python -m OAIGateway
 ```
+
+Note: If running on port 443, elevated privileges may be required.
+
+## Logging
+
+The gateway includes comprehensive logging features:
+
+- Console and file logging configured via environment variables
+- Request and response details are logged with unique request IDs for traceability
+- Request body information is sanitized to avoid logging sensitive data
+- Client IP addresses and request headers are captured for security analysis
+- Different log levels are used based on response status codes
+
+### Standard Application Logs
+
+Standard application logs are written to both console and the file specified by `LOG_FILE` (default: `oai_gateway.log`). These logs contain high-level information about application status, errors, and basic request information.
+
+### Request Tracing
+
+A dedicated request tracing system logs detailed information about all HTTP requests and responses to a separate file specified by `REQUEST_LOG_FILE` (default: `request_trace.log`). This tracing includes:
+
+- Complete request and response cycles with unique request IDs
+- Full HTTP headers (with sensitive authentication values redacted)
+- Sanitized request bodies (message content replaced with length indicators)
+- Sanitized response bodies (assistant responses replaced with length indicators)
+- Request timing information
+- Clear BEGIN/END markers for each request
+- Visual separators between requests for easy log reading
+
+You can customize both logging systems with these environment variables:
+- `LOG_LEVEL`: Set to DEBUG, INFO, WARNING, ERROR, or CRITICAL (default: INFO)
+- `LOG_FILE`: Path to the standard application log file (default: oai_gateway.log)
+- `REQUEST_LOG_FILE`: Path to the detailed request tracing file (default: request_trace.log)
+
+## Provider System
+
+The gateway uses a provider-based architecture to transform between OpenAI and backend formats:
+
+1. Each provider implements the `Provider` interface
+2. Providers are selected based on the requested model
+3. Providers handle the transformation logic for specific backends
+4. Available providers:
+   - Azure OpenAI provider
+   - Dummy provider (for testing)
+
+To add additional providers, create a new module in the `Providers/backend` directory that implements the `Provider` interface.
 
 ## Endpoints
 
 - `/v1/chat/completions`: Handles chat completion requests in OpenAI format
-- `/v1/models`: Returns a simple list of available models
-- `/health`: Health check endpoint
+- `/health`: Health check endpoint with provider status
+- `/*`: Catch-all handler that returns proper 404 errors in OpenAI format
 
 ## Request/Response Flow
 
 1. Client sends an OpenAI-formatted request to the gateway
-2. Gateway validates and transforms the request to backend format
-3. Gateway forwards the transformed request to the backend
-4. Backend processes the request and returns a response
-5. Gateway transforms the backend response to OpenAI format
-6. Gateway returns the OpenAI-formatted response to the client
+2. Gateway validates and identifies the appropriate provider
+3. Provider transforms the request to its specific backend format
+4. Gateway forwards the transformed request to the backend
+5. Backend processes the request and returns a response
+6. Provider transforms the backend response to OpenAI format
+7. Gateway returns the OpenAI-formatted response to the client
 
 ## Request Transformation
 
-The gateway transforms OpenAI's "messages" format:
+The request transformation depends on the provider implementation. For example, the default Azure provider transforms OpenAI's "messages" format:
 
 ```json
 {
@@ -94,7 +165,7 @@ The gateway transforms OpenAI's "messages" format:
 }
 ```
 
-Into the backend's "conversation" format:
+Into the Azure backend's "conversation" format:
 
 ```json
 {
@@ -151,7 +222,7 @@ Is transformed back to OpenAI format:
 ## Limitations
 
 - Streaming responses are not supported
-- Limited to hardcoded endpoints
+- Limited model selection capability
 - No authentication handling
 - Self-signed certificates for development only
 
@@ -161,6 +232,8 @@ Is transformed back to OpenAI format:
 - **Connection refused**: Verify the backend service is running at the configured URL
 - **SSL errors**: Check that your client trusts the self-signed certificate
 - **Request errors**: Examine the logs for details on request validation or transformation issues
+- **Log file access issues**: Ensure the directory for the log file exists and is writable
+- **Log file permissions**: If using a non-default log path, ensure write permissions
 
 ## Security Considerations
 
@@ -170,4 +243,4 @@ This gateway is intended for local development only. For production use, conside
 - Implementing authentication and authorization
 - Adding rate limiting
 - Containerizing the application
-- Configuring through environment variables instead of hardcoding
+- Implementing more robust error handling and logging
