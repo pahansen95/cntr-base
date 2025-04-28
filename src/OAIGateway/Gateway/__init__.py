@@ -4,14 +4,12 @@ from fastapi import FastAPI, Request, Response
 ### Logging
 logger = logging.getLogger(__name__)
 # do no setup; let the ASGI Server handle it
-logger.setLevel(logging.DEBUG)
-logger.debug("Initialized Gateway logger in debug mode")
 
 ### Metrics
 metrics = logging.getLogger(f'{__name__}/metrics')
 metrics.propagate = False
 metrics.setLevel('DEBUG') # Maximum Metrics
-metrics_handler = logging.FileHandler(os.environ.get('HTTP_METRICS', './http.metrics'))
+metrics_handler = logging.FileHandler(os.environ.get('HTTP_METRICS', './http.metrics'), mode='w')
 metrics_handler.setFormatter(logging.Formatter('%(asctime)s %(levelname)s %(message)s'))
 metrics.addHandler(metrics_handler)
 metrics.info('Initialized')
