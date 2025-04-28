@@ -1,11 +1,18 @@
 from fastapi.responses import JSONResponse
 from . import app
+import logging
+
+### Logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.debug("Initialized fallback logger in debug mode")
 
 ### Routes
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD", "PATCH"])
 async def unmatched(path: str):
     """Catch-all route for unmatched requests."""
+    logger.debug(f"Unmatched route accessed: /{path}")
     return JSONResponse(
         status_code=404,
         content={"error": "Not found", "message": f"Route '/{path}' not found"}

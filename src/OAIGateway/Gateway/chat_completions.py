@@ -11,6 +11,12 @@ from fastapi import Body, HTTPException, Request, Depends
 import httpx
 import os
 import json
+import logging
+
+# Setup logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+logger.debug("Initialized chat_completions logger in debug mode")
 
 # Pydantic models for request validation
 
@@ -79,16 +85,21 @@ async def chat_completions(
   azure_client: httpx.AsyncClient = Depends(get_azure_client)
 ):
   """Transforms an OpenAI ChatCompletion to an Azure AI Chat Completion"""
+  logger.debug(f"Received chat completion request")
   try:
     # Parse the request body
     body = await request.json()
+    logger.debug(f"Request body: {body}")
     oai_request = ChatCompletionRequest(**body)
     
     # Get the Azure deployment name for the requested model
     model = oai_request.model
+    logger.debug(f"Requested model: {model}")
     deployment_name = azure_config.deployment_map.get(model)
+    logger.debug(f"Mapped to deployment: {deployment_name}")
     
     if not deployment_name:
+      logger.warning(f"Model '{model}' not found in deployment map")
       raise HTTPException(
         status_code=400, 
         detail=f"Model '{model}' is not supported or mapped to an Azure deployment"
@@ -113,10 +124,13 @@ async def chat_completions(
     
     # Make the request to Azure OpenAI
     endpoint = f"/openai/deployments/{deployment_name}/chat/completions?api-version={azure_config.api_version}"
+    logger.debug(f"Sending request to Azure endpoint: {endpoint}")
+    logger.debug(f"Azure request payload: {azure_request}")
     azure_response = await azure_client.post(
       endpoint,
       json=azure_request
     )
+    logger.debug(f"Azure response status: {azure_response.status_code}")
     
     # Check for errors
     if azure_response.status_code != 200:
@@ -128,14 +142,18 @@ async def chat_completions(
     
     # For streaming responses, we need to stream the response back
     if oai_request.stream:
+      logger.debug("Returning streaming response")
       return azure_response.aiter_raw()
     
     # For non-streaming, just return the JSON response
     # The response format is already compatible with OpenAI format
+    logger.debug(f"Returning JSON response")
     return azure_response.json()
     
   except pydantic.ValidationError as e:
+    logger.error(f"Validation error: {str(e)}")
     raise HTTPException(status_code=400, detail=f"Invalid request format: {str(e)}")
   
   except Exception as e:
+    logger.error(f"Internal server error: {str(e)}", exc_info=True)
     raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
