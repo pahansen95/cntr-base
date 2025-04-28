@@ -19,7 +19,7 @@ SCRIPT = pathlib.Path(__file__)
 CONTEXT = SCRIPT.parent  # The context of Script
 logger = logging.getLogger(__package__ if __name__ == '__main__' else __name__)
 
-from OAIGateway.gateway import app
+from OAIGateway.Gateway import app
 
 def main(
   args: deque[str],
