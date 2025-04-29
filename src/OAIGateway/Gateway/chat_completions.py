@@ -197,6 +197,26 @@ async def chat_completions(
     logger.debug(f"Request body: {body}")
     oai_request = ChatCompletionRequest(**body)
     
+    # Validate tool_call_id references
+    messages = oai_request.messages
+    for i, msg in enumerate(messages):
+      if i > 0 and msg.role == "tool" and msg.tool_call_id:
+        prev_msg = messages[i-1]
+        # Check if previous message has tool_calls
+        if prev_msg.role != "assistant" or not prev_msg.tool_calls:
+          raise HTTPException(
+            status_code=400,
+            detail=f"Invalid parameter: 'tool_call_id' of '{msg.tool_call_id}' not found in 'tool_calls' of previous message (previous message has no tool_calls)"
+          )
+        
+        # Check if tool_call_id exists in previous message's tool_calls
+        tool_call_ids = [tool_call.get("id") for tool_call in prev_msg.tool_calls]
+        if msg.tool_call_id not in tool_call_ids:
+          raise HTTPException(
+            status_code=400,
+            detail=f"Invalid parameter: 'tool_call_id' of '{msg.tool_call_id}' not found in 'tool_calls' of previous message"
+          )
+    
     # Get the Azure deployment name for the requested model
     model = oai_request.model
     logger.debug(f"Requested model: {model}")
@@ -209,6 +229,37 @@ async def chat_completions(
         status_code=400, 
         detail=f"Model '{model}' is not supported or mapped to an Azure deployment"
       )
+    
+    # Validate tool messages have valid tool_call_id references
+    messages = oai_request.messages
+    for i, msg in enumerate(messages):
+      if msg.role == "tool" and msg.tool_call_id:
+        if i == 0:
+          raise HTTPException(
+            status_code=400,
+            detail=f"Tool message cannot be the first message in the conversation"
+          )
+        
+        prev_msg = messages[i-1]
+        if prev_msg.role != "assistant":
+          raise HTTPException(
+            status_code=400,
+            detail=f"Tool message must follow an assistant message"
+          )
+        
+        if not prev_msg.tool_calls:
+          raise HTTPException(
+            status_code=400,
+            detail=f"Tool message references tool_call_id '{msg.tool_call_id}', but previous assistant message has no tool_calls"
+          )
+        
+        # Extract tool call IDs from previous message
+        tool_call_ids = [tool_call.get("id") for tool_call in prev_msg.tool_calls]
+        if msg.tool_call_id not in tool_call_ids:
+          raise HTTPException(
+            status_code=400,
+            detail=f"Invalid tool_call_id '{msg.tool_call_id}': not found in previous message's tool_calls: {tool_call_ids}"
+          )
     
     # Transform to Azure API format
     azure_request = {
